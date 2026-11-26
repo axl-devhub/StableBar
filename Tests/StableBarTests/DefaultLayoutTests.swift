@@ -364,6 +364,20 @@ func listEntriesDrawInOrderWithTheirSpacing(direction: (property: String, type: 
     #expect(MarkdownBlock.blocks(#"\> escaped marker"#) == [.paragraph(#"\> escaped marker"#)])
 }
 
+@Test func markdownAnswersKeepUnmarkedParagraphContinuationsInBlockquotes() {
+    #expect(MarkdownBlock.blocks("> First line\n**Second line**\n> Third line\n# Outside") == [
+        .blockquote("First line\n**Second line**\nThird line"),
+        .heading("Outside")
+    ])
+    #expect(MarkdownBlock.blocks("> Quoted\n\nOutside") == [.blockquote("Quoted"), .paragraph("Outside")])
+    #expect(MarkdownBlock.blocks("> Quoted\n>\nOutside") == [.blockquote("Quoted\n"), .paragraph("Outside")])
+    #expect(MarkdownBlock.blocks("> Quoted\n- Outside") == [.blockquote("Quoted"), .item(marker: "•", text: "Outside", depth: 0)])
+    #expect(MarkdownBlock.blocks("> Quoted\n~~~\nOutside\n~~~") == [.blockquote("Quoted"), .code("Outside")])
+    #expect(MarkdownBlock.blocks("> Quoted\n---") == [.blockquote("Quoted"), .paragraph("---")])
+    #expect(MarkdownBlock.blocks("> ## Heading\nOutside") == [.blockquote("## Heading"), .paragraph("Outside")])
+    #expect(MarkdownBlock.blocks("> ~~~\n> code\nOutside") == [.blockquote("~~~\ncode"), .paragraph("Outside")])
+}
+
 /// A drawing is one frame, so this checks the still shapes: playing in the measuring copy and under
 /// Reduce Motion, and settled when the source is off.
 @Test @MainActor func equalizersDrawStillWhileMeasuredAndSettleWhenTheirSourceIsOff() throws {

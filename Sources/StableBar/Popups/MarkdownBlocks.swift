@@ -17,6 +17,7 @@ enum MarkdownBlock: Equatable {
         // The lines of a paragraph, or of a table when they start with a pipe.
         var paragraph: [Substring] = []
         var quote: [Substring] = []
+        var quotedParagraphLines: IndexSet?
         var code: [Substring]?
         // The open code block's fence, which only a run of its character at least as long closes.
         var opener: Substring = ""
@@ -33,11 +34,19 @@ enum MarkdownBlock: Equatable {
             blocks.append(.blockquote(quote.joined(separator: "\n")))
             quote = []
         }
-        for line in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
+        for (index, line) in markdown.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
             if code == nil, let quoted = line.wholeMatch(of: /[ ]{0,3}>[ \t]?(.*)/) {
                 endParagraph()
                 quote.append(quoted.1)
                 continue
+            }
+            if !quote.isEmpty, !line.allSatisfy(\.isWhitespace) {
+                let lines = quotedParagraphLines ?? quoteParagraphLines(in: markdown)
+                quotedParagraphLines = lines
+                if lines.contains(index + 1) {
+                    quote.append(line)
+                    continue
+                }
             }
             endQuote()
             let fence = fence(line)
@@ -69,6 +78,21 @@ enum MarkdownBlock: Equatable {
         endParagraph()
         endQuote()
         return blocks
+    }
+
+    /// Foundation's block parser decides which unmarked lines continue a quoted paragraph.
+    private static func quoteParagraphLines(in markdown: String) -> IndexSet {
+        var lines = IndexSet()
+        guard let parsed = try? AttributedString(markdown: markdown, options: .init(appliesSourcePositionAttributes: true))
+        else { return lines }
+        for run in parsed.runs {
+            guard let position = run.markdownSourcePosition, position.startLine <= position.endLine,
+                  let components = run.presentationIntent?.components, components.first?.kind == .paragraph,
+                  components.contains(where: { $0.kind == .blockQuote })
+            else { continue }
+            lines.insert(integersIn: position.startLine ... position.endLine)
+        }
+        return lines
     }
 
     /// The run of three or more backticks or tildes that starts a code fence on `line`, and what follows it.
